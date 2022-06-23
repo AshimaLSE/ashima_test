@@ -1,0 +1,95 @@
+---
+title: "Eurovision"
+output: html_document
+date: '2022-06-23'
+---
+```{r}
+library(dplyr)
+library(ggplot2)
+install.packages("remotes")
+library(remotes)
+install_git("https://github.com/jimjam-slam/ggflags")
+
+eurovision <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2022/2022-05-17/eurovision.csv')
+
+glimpse(eurovision)
+head(eurovision)
+
+unique(eurovision$section)
+
+eurovision_final <- eurovision %>%
+  filter(section == 'grand-final' | section == 'final')
+eurovision_final
+
+```
+
+```{r}
+flags <- eurovision_final$country_emoji
+flags
+
+flag_clean <- gsub(":flag_","",x = flags) %>%
+  gsub(":","", x=.)
+
+eurovision_final$flag_clean <- flag_clean
+
+```
+
+
+```{r}
+#eurovision_final%>%
+ # count(artist_country, winner == TRUE) %>%
+ # filter(winner == TRUE)
+
+eurovision_final %>%
+  filter(winner == TRUE) %>%
+  count(artist_country, year) %>%
+  arrange(desc(year))
+
+#eurovision_final %>%
+ # mutate(winner_num = as.numeric(winner)) %>%
+  #group_by(artist_country) %>%
+  #summarise(years_present = sum(year))
+
+artist_flags <- eurovision_final%>% select(artist_country, flag_clean) %>%
+  filter(duplicated(flag_clean))
+
+#before we used flags
+
+eurovision$winner_int <- as.integer(eurovision$winner)
+
+#now filter for final and grand-final, agg by country
+unique(eurovision$section)
+#calculate avg points and rank, and total wins and year
+
+country_agg <- eurovision %>%
+  filter(section == 'final' | section == 'grand final') %>%
+  group_by(artist_country) %>%
+  summarise(avg_points = mean(rank, na.rm = TRUE), 
+            tot_wins = sum(winner_int, na.rm = TRUE),
+            tot_years = n()) %>%
+  arrange(desc(tot_wins)) %>%
+  
+  mutate(win_ratio = (tot_wins/tot_years)*100) %>%
+  arrange(desc(win_ratio))
+
+country_agg
+```
+```{r}
+#below line added after flags
+country_agg <- left_join(country_agg, artist_flags, by = 'artist_country')
+
+library(forcats)
+
+country_agg%>%
+  filter(tot_wins > 0) %>%
+  mutate(artist_country= fct_reorder(artist_country, win_ratio))%>%
+  ggplot(aes(x=win_ratio, y=artist_country)) + 
+  geom_bar(stat = 'identity')
+
+country_agg %>%
+  filter(tot_wins > 0) %>%
+  ggplot(aes(x = avg_points, y = win_ratio, colour = artist_country))+
+  geom_point()
+
+```
+
